@@ -1,9 +1,10 @@
 using Plots
+using StatsPlots
 
-function plot_convergence(inst::Instance; save_path::String="convergence.png")
-    lr_polyak = lagrangian_relaxation(inst; policy=POLYAK, max_iter=300)
-    lr_geo = lagrangian_relaxation(inst; policy=GEOMETRIC, max_iter=300)
-    lr_harm = lagrangian_relaxation(inst; policy=HARMONIC, max_iter=300)
+function plot_convergence(inst::Instance; save_path::String="convergence.png", max_iter::Int=50)
+    lr_polyak = lagrangian_relaxation(inst; policy=POLYAK, max_iter=max_iter)
+    lr_geo = lagrangian_relaxation(inst; policy=GEOMETRIC, max_iter=max_iter)
+    lr_harm = lagrangian_relaxation(inst; policy=HARMONIC, max_iter=max_iter)
 
     p = plot(size=(800, 500), dpi=150)
 
@@ -100,22 +101,18 @@ function plot_weight_sensitivity(results; save_path::String="weights.png")
     println("Saved weight sensitivity plot to $save_path")
 end
 
-function generate_all_plots(; output_dir::String=".")
+function generate_all_plots(results; output_dir::String=".")
     println("\nGenerating plots...")
 
-    inst = medium_instance(seed=42)
+    inst = generate_instance(20, 5; seed=42, size_class=:medium)
+    plot_convergence(inst; save_path=joinpath(output_dir, "fig1_convergence.png"), max_iter=50)
 
-    plot_convergence(inst; save_path=joinpath(output_dir, "fig1_convergence.png"))
+    plot_scalability(results.exp5; save_path=joinpath(output_dir, "fig2_scalability.png"))
 
-    println("  Running scalability experiment for plot...")
-    scale_results = run_experiment5(verbose=false)
-    plot_scalability(scale_results; save_path=joinpath(output_dir, "fig2_scalability.png"))
-
-    λ, _, inst4 = run_experiment4(verbose=false)
+    λ, _, inst4 = results.exp4
     plot_multipliers(λ, inst4; save_path=joinpath(output_dir, "fig3_multipliers.png"))
 
-    weight_results = run_experiment6(verbose=false)
-    plot_weight_sensitivity(weight_results; save_path=joinpath(output_dir, "fig4_weights.png"))
+    plot_weight_sensitivity(results.exp6; save_path=joinpath(output_dir, "fig4_weights.png"))
 
     println("\nAll plots saved to $output_dir")
 end

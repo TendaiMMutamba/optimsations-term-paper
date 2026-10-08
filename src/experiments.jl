@@ -1,15 +1,15 @@
 using Printf
 using Statistics
 
-function run_experiment1(; num_runs=5, verbose=true)
+function run_experiment1(; num_runs=2, verbose=true)
     verbose && println("\n" * "="^70)
     verbose && println("EXPERIMENT 1: Lagrangian vs Direct MIP")
     verbose && println("="^70)
 
     configs = [
-        (:small, 10, 3, :small),
-        (:medium, 50, 10, :medium),
-        (:large, 200, 30, :large),
+        (:small, 5, 3, :small),
+        (:medium, 10, 5, :medium),
+        (:large, 15, 5, :large),
     ]
 
     results = Dict()
@@ -27,13 +27,12 @@ function run_experiment1(; num_runs=5, verbose=true)
         for run in 1:num_runs
             inst = generate_instance(N, M; seed=run*100, size_class=sc)
 
-            tl = label == :large ? 600.0 : 300.0
-            mip = solve_direct_mip(inst; time_limit=tl)
+            mip = solve_direct_mip(inst; time_limit=30.0)
             push!(mip_objs, mip.objective)
             push!(mip_bounds, mip.bound)
             push!(mip_times, mip.time)
 
-            lr = lagrangian_relaxation(inst; policy=POLYAK, max_iter=300)
+            lr = lagrangian_relaxation(inst; policy=POLYAK, max_iter=50)
             push!(lr_objs, lr.best_ub)
             push!(lr_bounds, lr.best_lb)
             push!(lr_times, lr.time)
@@ -74,7 +73,7 @@ function run_experiment1(; num_runs=5, verbose=true)
     return results
 end
 
-function run_experiment2(; num_runs=5, verbose=true)
+function run_experiment2(; num_runs=2, verbose=true)
     verbose && println("\n" * "="^70)
     verbose && println("EXPERIMENT 2: Subgradient Step Size Comparison")
     verbose && println("="^70)
@@ -93,14 +92,14 @@ function run_experiment2(; num_runs=5, verbose=true)
         iters_to_90 = Int[]
 
         for run in 1:num_runs
-            inst = medium_instance(seed=run*100)
-            lr = lagrangian_relaxation(inst; policy=pol, max_iter=300)
+            inst = generate_instance(20, 5; seed=run*100, size_class=:medium)
+            lr = lagrangian_relaxation(inst; policy=pol, max_iter=50)
             push!(lbs, lr.best_lb)
             push!(gaps, lr.gap)
 
             target_90 = 0.9 * lr.best_lb
             iter90 = findfirst(x -> x >= target_90, lr.lb_history)
-            push!(iters_to_90, iter90 === nothing ? 500 : iter90)
+            push!(iters_to_90, iter90 === nothing ? lr.iterations : iter90)
         end
 
         results[name] = Dict(
@@ -118,15 +117,15 @@ function run_experiment2(; num_runs=5, verbose=true)
     return results
 end
 
-function run_experiment3(; num_runs=5, verbose=true)
+function run_experiment3(; num_runs=2, verbose=true)
     verbose && println("\n" * "="^70)
     verbose && println("EXPERIMENT 3: Duality Gap Analysis")
     verbose && println("="^70)
 
     configs = [
         (:small, 10, 3, :small),
-        (:medium, 50, 10, :medium),
-        (:large, 200, 30, :large),
+        (:medium, 20, 5, :medium),
+        (:large, 30, 8, :large),
     ]
 
     results = Dict()
@@ -142,11 +141,10 @@ function run_experiment3(; num_runs=5, verbose=true)
             lp = solve_lp_relaxation(inst)
             push!(lp_bounds, lp)
 
-            lr = lagrangian_relaxation(inst; policy=POLYAK, max_iter=300)
+            lr = lagrangian_relaxation(inst; policy=POLYAK, max_iter=50)
             push!(lr_bounds, lr.best_lb)
 
-            tl = label == :large ? 600.0 : 300.0
-            mip = solve_direct_mip(inst; time_limit=tl)
+            mip = solve_direct_mip(inst; time_limit=30.0)
             best_feas = min(mip.objective, lr.best_ub)
             push!(mip_objs, best_feas)
         end
@@ -174,8 +172,8 @@ function run_experiment4(; verbose=true)
     verbose && println("EXPERIMENT 4: Multiplier Analysis")
     verbose && println("="^70)
 
-    inst = medium_instance(seed=42)
-    lr = lagrangian_relaxation(inst; policy=POLYAK, max_iter=300)
+    inst = generate_instance(20, 5; seed=42, size_class=:medium)
+    lr = lagrangian_relaxation(inst; policy=POLYAK, max_iter=50)
 
     order = sortperm(lr.λ, rev=true)
 
@@ -207,7 +205,7 @@ function run_experiment5(; verbose=true)
     verbose && println("="^70)
 
     configs = [
-        (10, 3), (25, 9), (50, 17), (100, 34),
+        (5, 2), (10, 3), (20, 5), (30, 8),
     ]
 
     results = []
@@ -216,9 +214,9 @@ function run_experiment5(; verbose=true)
         sc = N <= 10 ? :small : (N <= 50 ? :medium : :large)
         inst = generate_instance(N, M; seed=42, size_class=sc)
 
-        tl = min(600.0, max(60.0, N * 3.0))
+        tl = min(30.0, max(5.0, Float64(N)))
         mip = solve_direct_mip(inst; time_limit=tl)
-        lr = lagrangian_relaxation(inst; policy=POLYAK, max_iter=300)
+        lr = lagrangian_relaxation(inst; policy=POLYAK, max_iter=50)
 
         mip_gap = mip.objective > 0 ? (mip.objective - mip.bound) / mip.objective * 100 : 0.0
         lr_gap = lr.gap
@@ -260,8 +258,8 @@ function run_experiment6(; verbose=true)
     end
 
     for (name, α, β, γ) in weight_configs
-        inst = generate_instance(50, 10; seed=42, α=α, β=β, γ=γ, size_class=:medium)
-        lr = lagrangian_relaxation(inst; policy=POLYAK, max_iter=300)
+        inst = generate_instance(20, 5; seed=42, α=α, β=β, γ=γ, size_class=:medium)
+        lr = lagrangian_relaxation(inst; policy=POLYAK, max_iter=50)
 
         active_servers = sum(lr.v[j] > 0.5 for j in 1:inst.M)
 
@@ -286,7 +284,112 @@ function run_experiment6(; verbose=true)
     return results
 end
 
-function run_all_experiments(; num_runs=5)
+function save_results(results, filename::String)
+    open(filename, "w") do io
+        println(io, "="^70)
+        println(io, "  CLOUD RESOURCE ALLOCATION - LAGRANGIAN RELAXATION")
+        println(io, "  Experimental Results")
+        println(io, "  Generated: ", Dates.format(Dates.now(), "yyyy-mm-dd HH:MM:SS"))
+        println(io, "="^70)
+
+        # Experiment 1
+        println(io, "\n" * "="^70)
+        println(io, "EXPERIMENT 1: Lagrangian vs Direct MIP")
+        println(io, "="^70)
+        println(io, "-"^85)
+        @printf(io, "%-8s %-12s %10s %10s %8s %8s\n", "Instance", "Method", "Objective", "LB", "Gap(%)", "Time(s)")
+        println(io, "-"^85)
+        configs_labels = [:small, :medium, :large]
+        for label in configs_labels
+            if haskey(results.exp1, label)
+                r = results.exp1[label]
+                mip_gap = r[:mip_obj] > 0 ? (r[:mip_obj] - r[:mip_bound]) / r[:mip_obj] * 100 : 0.0
+                lr_gap = r[:lr_obj] > 0 ? (r[:lr_obj] - r[:lr_bound]) / r[:lr_obj] * 100 : 0.0
+                @printf(io, "%-8s %-12s %10.1f %10.1f %7.1f%% %8.1f\n",
+                    label, "Direct MIP", r[:mip_obj], r[:mip_bound], mip_gap, r[:mip_time])
+                @printf(io, "%-8s %-12s %10.1f %10.1f %7.1f%% %8.1f\n",
+                    label, "Lagrangian", r[:lr_obj], r[:lr_bound], lr_gap, r[:lr_time])
+            end
+        end
+        println(io, "-"^85)
+
+        # Experiment 2
+        println(io, "\n" * "="^70)
+        println(io, "EXPERIMENT 2: Subgradient Step Size Comparison")
+        println(io, "="^70)
+        for name in ["Polyak", "Geometric", "Harmonic"]
+            if haskey(results.exp2, name)
+                r = results.exp2[name]
+                @printf(io, "  %-12s  Final LB: %8.1f  Iters to 90%%: %4d  Gap: %.1f%%\n",
+                    name, r[:lb], r[:iters_90], r[:gap])
+            end
+        end
+
+        # Experiment 3
+        println(io, "\n" * "="^70)
+        println(io, "EXPERIMENT 3: Duality Gap Analysis")
+        println(io, "="^70)
+        for label in configs_labels
+            if haskey(results.exp3, label)
+                r = results.exp3[label]
+                lr_gap = r[:best_feas] > 0 ? (r[:best_feas] - r[:lr_bound]) / r[:best_feas] * 100 : 0.0
+                lp_gap = r[:best_feas] > 0 ? (r[:best_feas] - r[:lp_bound]) / r[:best_feas] * 100 : 0.0
+                @printf(io, "  %-8s  LP bound: %8.1f  LR bound: %8.1f  Best feasible: %8.1f  LR gap: %.1f%%  LP gap: %.1f%%\n",
+                    label, r[:lp_bound], r[:lr_bound], r[:best_feas], lr_gap, lp_gap)
+            end
+        end
+
+        # Experiment 4
+        λ, order, inst = results.exp4
+        println(io, "\n" * "="^70)
+        println(io, "EXPERIMENT 4: Multiplier Analysis")
+        println(io, "="^70)
+        println(io, "\n  Top-10 workloads by multiplier value:")
+        @printf(io, "  %4s %10s %8s %8s %8s\n", "ID", "λ", "CPU", "Mem", "Sto")
+        println(io, "  " * "-"^42)
+        for k in 1:min(10, inst.N)
+            i = order[k]
+            @printf(io, "  %4d %10.2f %8.1f %8.1f %8.1f\n",
+                i, λ[i], inst.d_cpu[i], inst.d_mem[i], inst.d_sto[i])
+        end
+        println(io, "\n  Bottom-5 workloads:")
+        println(io, "  " * "-"^42)
+        for k in max(1, inst.N-4):inst.N
+            i = order[k]
+            @printf(io, "  %4d %10.2f %8.1f %8.1f %8.1f\n",
+                i, λ[i], inst.d_cpu[i], inst.d_mem[i], inst.d_sto[i])
+        end
+
+        # Experiment 5
+        println(io, "\n" * "="^70)
+        println(io, "EXPERIMENT 5: Scalability")
+        println(io, "="^70)
+        for r in results.exp5
+            tl_str = ""
+            @printf(io, "  N=%3d M=%3d  MIP: %.1fs%s gap=%.1f%%  |  LR: %.1fs gap=%.1f%%\n",
+                r.N, r.M, r.mip_time, tl_str, r.mip_gap, r.lr_time, r.lr_gap)
+        end
+
+        # Experiment 6
+        println(io, "\n" * "="^70)
+        println(io, "EXPERIMENT 6: Objective Weight Sensitivity")
+        println(io, "="^70)
+        @printf(io, "  %-14s %5s %5s %5s %7s %10s %10s %10s\n",
+            "Config", "α", "β", "γ", "Servers", "Cost", "Time", "Energy")
+        println(io, "  " * "-"^75)
+        for r in results.exp6
+            @printf(io, "  %-14s %5.2f %5.2f %5.2f %7d %10.1f %10.1f %10.1f\n",
+                r.name, r.α, r.β, r.γ, r.servers, r.cost, r.time, r.energy)
+        end
+
+        println(io, "\n" * "="^70)
+        println(io, "  End of results.")
+        println(io, "="^70)
+    end
+    println("Results saved to $filename")
+end
+
+function run_all_experiments(; num_runs=2)
     println("="^70)
     println("  CLOUD RESOURCE ALLOCATION - LAGRANGIAN RELAXATION")
     println("  Full Experimental Suite")
